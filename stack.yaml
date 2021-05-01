@@ -44,6 +44,8 @@ extra-deps:
   - constraints-extras-0.3.1.0
   - some-1.0.2
 
+local-bin-path: build
+
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

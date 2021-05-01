@@ -4,14 +4,13 @@ module Entrypoint (run) where
 
 import           Data.Text           (pack)
 import           Data.Version        (showVersion)
+import           Handlers            (handlers)
 import           Language.LSP.Server
 import           Language.LSP.Types
 import qualified Paths_haskell_pyls
 import           RIO
 import           Types               (App)
 
-handlers :: Handlers (LspM ())
-handlers = mempty
 
 serverName :: String
 serverName = "haskell-pyls"
@@ -24,7 +23,7 @@ thisServerInfo = ServerInfo (pack serverName) (Just $ pack serverVersion)
 
 run :: RIO App Int
 run = do
-  --logInfo ("Starting " ++ serverName ++ "(v" ++ serverVersion ++ ")")
+  logInfo $ fromString ("Starting " ++ serverName ++ " (v" ++ serverVersion ++ ")")
   liftIO $ runServer $ ServerDefinition
     { defaultConfig = ()
     , onConfigurationChange = const $ pure $ Right ()

@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       Entrypoint
+      Handlers
       Types
   other-modules:
       Paths_haskell_pyls
