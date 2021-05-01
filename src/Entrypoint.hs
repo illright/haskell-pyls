@@ -2,9 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Entrypoint (run) where
 
-import           RIO   (RIO, logInfo)
-import           Types (App)
+import           Language.LSP.Server
+import           RIO
+import           Types               (App)
 
-run :: RIO App ()
+handlers :: Handlers (LspM ())
+handlers = mempty
+
+run :: RIO App Int
 run = do
-  logInfo "We're inside the application!"
+  logInfo "Starting the language server"
+  liftIO $ runServer $ ServerDefinition
+    { onConfigurationChange = const $ pure $ Right ()
+    , doInitialize = \env _req -> pure $ Right env
+    , staticHandlers = handlers
+    , interpretHandler = \env -> Iso (runLspT env) liftIO
+    , options = defaultOptions
+    }

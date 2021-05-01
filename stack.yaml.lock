@@ -10,4 +10,53 @@ snapshots:
     sha256: 321b3b9f0c7f76994b39e0dabafdc76478274b4ff74cc5e43d410897a335ad3b
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/10.yaml
     size: 567241
-packages: []
+packages:
+- original:
+    hackage: lsp-1.2.0.0
+  completed:
+    pantry-tree:
+      sha256: 9579098723eb88b773e9a0b2ab12e6a94d2b27b3fc5446cf481ce17bf028a1d0
+      size: 1350
+    hackage: lsp-1.2.0.0@sha256:c51e071444ab95d59a30c463030bb4272f8298be1362a11f61a837cf850f0bac,5572
+- original:
+    hackage: lsp-types-1.2.0.0
+  completed:
+    pantry-tree:
+      sha256: aa42d1fec7c0d55e18f6196e2dc44b27d499359e8a62a6a50ddb7c2eecc391d3
+      size: 3984
+    hackage: lsp-types-1.2.0.0@sha256:b76ac9911d3d8d48db35ed2dbf02b43006239daba314925aaf602b4e825737c8,4327
+- original:
+    hackage: dependent-map-0.4.0.0
+  completed:
+    pantry-tree:
+      sha256: 5defa30010904d2ad05a036f3eaf83793506717c93cbeb599f40db1a3632cfc5
+      size: 551
+    hackage: dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
+- original:
+    hackage: dependent-sum-0.7.1.0
+  completed:
+    pantry-tree:
+      sha256: 009601e5d33e835c7a384e240c5c6ad12643bce9c54b2a0b07201daee3380e51
+      size: 290
+    hackage: dependent-sum-0.7.1.0@sha256:0e419237f5b86da3659772afff9cab355c0f8d5b3fdb15a5b30e673d8dc83941,2147
+- original:
+    hackage: dependent-sum-template-0.1.0.3
+  completed:
+    pantry-tree:
+      sha256: 32eeadeb991a290a1da41ce7e995dee7d38ebba3bd3e53ea8074c32c086701fd
+      size: 436
+    hackage: dependent-sum-template-0.1.0.3@sha256:0bbbacdfbd3abf2a15aaf0cf2c27e5bdd159b519441fec39e1e6f2f54424adde,1682
+- original:
+    hackage: constraints-extras-0.3.1.0
+  completed:
+    pantry-tree:
+      sha256: 5fe01617233b7f66ba0e2aef95b218a19225a22e4193a8ed93999a3b7c43a4f3
+      size: 595
+    hackage: constraints-extras-0.3.1.0@sha256:12016ebb91ad5ed2c82bf7e48c6bd6947d164d33c9dca5ac3965de1bb6c780c0,1777
+- original:
+    hackage: some-1.0.2
+  completed:
+    pantry-tree:
+      sha256: 119b67a712f8ba938383969b629cb3d489eacd10f9525346e19867ea0eb1be98
+      size: 708
+    hackage: some-1.0.2@sha256:3d460998df32ad7b93bf55657aeae988d97070155e71718b4bc75d0997ce9d62,2244

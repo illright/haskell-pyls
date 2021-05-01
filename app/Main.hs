@@ -29,7 +29,7 @@ parseArgs = simpleOptions
   )
   empty
 
-main :: IO ()
+main :: IO Int
 main = do
   (options, ()) <- parseArgs
   logOptions <- logOptionsHandle stdout (optionsVerbose options)
