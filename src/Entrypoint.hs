@@ -1,8 +1,9 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Run (run) where
+module Entrypoint (run) where
 
-import Import
+import           RIO   (RIO, logInfo)
+import           Types (App)
 
 run :: RIO App ()
 run = do

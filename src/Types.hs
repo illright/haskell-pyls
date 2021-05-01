@@ -1,22 +1,18 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Types where
 
-import RIO
-import RIO.Process
+import           RIO (Bool, HasLogFunc (..), LogFunc, lens)
 
 -- | Command line arguments
-data Options = Options
-  { optionsVerbose :: !Bool
+newtype Options = Options
+  { optionsVerbose :: Bool -- ^ Whether the logs should include debug messages.
   }
 
+-- | The environment object that can be retrieved from inside the application.
 data App = App
-  { appLogFunc :: !LogFunc
-  , appProcessContext :: !ProcessContext
-  , appOptions :: !Options
-  -- Add other app-specific configuration information here
+  { appLogFunc :: LogFunc -- ^ To be able to use `logInfo` and others.
+  , appOptions :: Options -- ^ Command-line options to the application.
   }
 
 instance HasLogFunc App where
   logFuncL = lens appLogFunc (\x y -> x { appLogFunc = y })
-instance HasProcessContext App where
-  processContextL = lens appProcessContext (\x y -> x { appProcessContext = y })
