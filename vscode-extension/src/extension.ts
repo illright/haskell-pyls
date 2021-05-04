@@ -1,35 +1,46 @@
-import * as path from "path";
-import { workspace, ExtensionContext } from "vscode";
+import * as path from 'path';
+import { workspace, commands } from "vscode";
+import type { ExtensionContext } from 'vscode';
 
 import {
-	Executable,
   LanguageClient,
   LanguageClientOptions,
-  ServerOptions
+  ServerOptions,
+  TransportKind,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-  let server = context.asAbsolutePath(
-    path.join("..", "build", "haskell-pyls-exe")
+  const serverPath = context.asAbsolutePath(
+    path.join('..', 'build', 'haskell-pyls-exe')
   );
-
-  let serverOptions: ServerOptions = { command: server };
- 
-  let clientOptions: LanguageClientOptions = {
-	documentSelector: [{ scheme: "file", language: "python" }]
+  let serverOptions: ServerOptions = {
+    run: { command: serverPath, transport: TransportKind.stdio },
+    debug: { command: serverPath, transport: TransportKind.stdio },
   };
 
-  // Create the language client and start the client.
+  let clientOptions: LanguageClientOptions = {
+    documentSelector: [{ scheme: 'file', language: 'python' }],
+    synchronize: {
+      fileEvents: workspace.createFileSystemWatcher('**/*.py')
+    },
+    diagnosticCollectionName: 'diag'
+  };
+
   client = new LanguageClient(
-    "haskell-pyls",
-    "Haskell PyLS",
+    'haskell-pyls',
+    'Haskell PyLS',
     serverOptions,
     clientOptions
   );
 
-  // Start the client. This will also launch the server
+  const restartCmd = commands.registerCommand('haskell-pyls.commands.restartServer', async () => {
+    await client.stop();
+    client.start();
+  });
+  context.subscriptions.push(restartCmd);
+
   client.start();
 }
 
