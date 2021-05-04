@@ -1,8 +1,13 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Handlers (handlers) where
 
+import           Data.String
 import           Language.LSP.Server
 import           Language.LSP.Types
-import           RIO
+import           Prelude
+-- import           RIO
 
 handlers :: Handlers (LspM ())
 handlers = mconcat [
