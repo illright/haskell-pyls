@@ -6,7 +6,8 @@ import           Control.Monad.IO.Class
 import           Data.Version           (showVersion)
 import           Handlers               (handlers)
 import           Language.LSP.Server
-import           Language.LSP.Types
+import           Language.LSP.Types (ServerInfo (ServerInfo),
+                                     TextDocumentSyncOptions(..))
 import qualified Paths_haskell_pyls
 import           RIO
 import           Types                  (App)
@@ -29,5 +30,13 @@ run = do
     , doInitialize = \env _req -> pure $ Right env
     , staticHandlers = handlers
     , interpretHandler = \env -> Iso (runLspT env) liftIO
-    , options = defaultOptions { serverInfo = Just thisServerInfo }
+    , options = defaultOptions 
+      { serverInfo = Just thisServerInfo
+      , textDocumentSync = Just TextDocumentSyncOptions
+        { _openClose = Just True
+        , _change = Nothing
+        , _willSave = Nothing
+        , _willSaveWaitUntil = Nothing
+        , _save = Nothing}
+      }
     }
