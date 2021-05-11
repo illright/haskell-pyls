@@ -32,4 +32,4 @@ extra-deps:
 local-bin-path: build
 
 ghc-options:
-  "$everything": -haddock
+  "$everything": -Wall -fno-warn-type-defaults -haddock
