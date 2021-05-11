@@ -32,7 +32,7 @@ parseArgs = simpleOptions
 main :: IO Int
 main = do
   (options, ()) <- parseArgs
-  logOptions <- logOptionsHandle stdout (optionsVerbose options)
+  logOptions <- logOptionsHandle stderr (optionsVerbose options)
   withLogFunc logOptions $ \logFunction ->
     let app = App
           { appLogFunc = logFunction

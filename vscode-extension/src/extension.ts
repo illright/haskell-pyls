@@ -1,10 +1,12 @@
 import * as path from 'path';
-import { commands, workspace } from 'vscode';
-import type { ExtensionContext, TextDocument, Uri, WorkspaceFolder } from 'vscode';
+import { spawn } from 'child_process';
+import { commands, window, workspace } from 'vscode';
+import type { ExtensionContext, TextDocument, Uri, WorkspaceFolder, OutputChannel } from 'vscode';
 
 import {
   LanguageClient,
   LanguageClientOptions,
+  RevealOutputChannelOn,
   ServerOptions,
   TransportKind,
 } from 'vscode-languageclient/node';
@@ -62,17 +64,24 @@ async function activateServerForFolder(context: ExtensionContext, uri: Uri, fold
   // Set the key to null to prevent multiple servers being launched at once
   clients.set(clientsKey, null);
 
+  const langName = 'Haskell PyLS' + (folder ? ` (${folder.name})` : '');
+  const outputChannel = window.createOutputChannel(langName);
+
   const serverPath = context.asAbsolutePath(
     path.join('..', 'build', 'haskell-pyls-exe')
   );
-  let args: string[] = [];
-  let serverOptions: ServerOptions = {
-    command: serverPath,
-    transport: TransportKind.stdio,
-    args
-  };
+  const args: string[] = [];
+  const serverOptions = async function spawnServerProcess() {
+    const server = spawn(serverPath, args, {});
+    server.stderr.on('data', (stderrChunk: string) => {
+      outputChannel.appendLine(`[stderr] ${stderrChunk}`);
+    });
+    server.stdout.on('data', (stdoutChunk: string) => {
+      outputChannel.appendLine(`[stdout] ${stdoutChunk}`);
+    });
 
-  const langName = 'Haskell PyLS' + (folder ? ` (${folder.name})` : '');
+    return server;
+  }
 
   const pat = folder ? `${folder.uri.fsPath}/**/*` : '**/*';
   const clientOptions: LanguageClientOptions = {
@@ -82,6 +91,9 @@ async function activateServerForFolder(context: ExtensionContext, uri: Uri, fold
       { scheme: 'file', language: 'python', pattern: pat },
     ],
     diagnosticCollectionName: langName,
+    revealOutputChannelOn: RevealOutputChannelOn.Never,
+    outputChannel,
+    outputChannelName: langName,
     // Launch the server in the directory of the workspace folder.
     workspaceFolder: folder,
   };
