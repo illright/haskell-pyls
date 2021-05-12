@@ -4,6 +4,7 @@ module Entrypoint (run) where
 
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State.Lazy (StateT (..), evalStateT)
+import           Data.Map                       (empty)
 import           Data.Version                   (showVersion)
 import           Handlers                       (handlers)
 import           Language.LSP.Server
@@ -40,7 +41,7 @@ fromLspStateRIOtoIO app env initialState =
 run :: RIO App Int
 run = do
   app <- ask
-  let initialState = ServerState
+  let initialState = ServerState empty
   liftIO $ runServer $ ServerDefinition
     { defaultConfig = ()
     , onConfigurationChange = const $ pure $ Right ()

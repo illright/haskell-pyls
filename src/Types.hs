@@ -1,7 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Types where
 
-import           RIO (Bool, HasLogFunc (..), LogFunc, lens)
+import           Language.Python.Common.AST
+import           RIO
 
 -- | Command line arguments
 newtype Options = Options
@@ -14,7 +15,10 @@ data App = App
   , appOptions :: Options -- ^ Command-line options to the application.
   }
 
-data ServerState = ServerState
+-- | The read-write state for the language server.
+newtype ServerState = ServerState
+  { getFileIndex :: Map String (String, ModuleSpan)
+  }
 
 instance HasLogFunc App where
   logFuncL = lens appLogFunc (\x y -> x { appLogFunc = y })
