@@ -9,6 +9,7 @@ import           Data.Version                   (showVersion)
 import           Handlers                       (handlers)
 import           Language.LSP.Server
 import           Language.LSP.Types             (ServerInfo (ServerInfo),
+                                                 TextDocumentSyncKind (..),
                                                  TextDocumentSyncOptions (..))
 import qualified Paths_haskell_pyls
 import           RIO
@@ -25,17 +26,17 @@ thisServerInfo :: ServerInfo
 thisServerInfo = ServerInfo (fromString serverName) (Just $ fromString serverVersion)
 
 -- | Convert from 'IO a' to our preferred monad.
-fromIOtoLspStateRIO :: IO a -> StateT ServerState (LspT () (RIO App)) a
-fromIOtoLspStateRIO = liftIO
+fromIOtoStateLspRIO :: IO a -> StateT ServerState (LspT () (RIO App)) a
+fromIOtoStateLspRIO = liftIO
 
 -- | Convert from our preferred monad to 'IO a'.
-fromLspStateRIOtoIO
+fromStateLspRIOtoIO
   :: App
   -> LanguageContextEnv ()
   -> ServerState
   -> StateT ServerState (LspT () (RIO App)) a
   -> IO a
-fromLspStateRIOtoIO app env initialState =
+fromStateLspRIOtoIO app env initialState =
   runRIO app . runLspT env . (`evalStateT` initialState)
 
 run :: RIO App Int
@@ -48,12 +49,12 @@ run = do
     , doInitialize = \env _req -> pure $ Right env
     , staticHandlers = handlers
     , interpretHandler = \env ->
-        Iso (fromLspStateRIOtoIO app env initialState) fromIOtoLspStateRIO
+        Iso (fromStateLspRIOtoIO app env initialState) fromIOtoStateLspRIO
     , options = defaultOptions
       { serverInfo = Just thisServerInfo
       , textDocumentSync = Just TextDocumentSyncOptions
         { _openClose = Just True
-        , _change = Nothing
+        , _change = Just TdSyncFull
         , _willSave = Nothing
         , _willSaveWaitUntil = Nothing
         , _save = Nothing}

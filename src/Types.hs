@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Types where
 
+import           Language.LSP.Types         (Uri)
 import           Language.Python.Common.AST
 import           RIO
 
@@ -17,7 +18,7 @@ data App = App
 
 -- | The read-write state for the language server.
 newtype ServerState = ServerState
-  { getFileIndex :: Map String (String, ModuleSpan)
+  { getFileIndex :: Map Uri (Text, ModuleSpan)
   }
 
 instance HasLogFunc App where
