@@ -14,5 +14,7 @@ data App = App
   , appOptions :: Options -- ^ Command-line options to the application.
   }
 
+data ServerState = ServerState
+
 instance HasLogFunc App where
   logFuncL = lens appLogFunc (\x y -> x { appLogFunc = y })
