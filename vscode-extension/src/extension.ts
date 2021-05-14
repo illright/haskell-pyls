@@ -73,9 +73,6 @@ async function activateServerForFolder(context: ExtensionContext, uri: Uri, fold
   const args: string[] = [];
   const serverOptions = async function spawnServerProcess() {
     const server = spawn(serverPath, args, {});
-    server.stderr.on('data', (stderrChunk: string) => {
-      outputChannel.appendLine(`[stderr] ${stderrChunk}`);
-    });
     server.stdout.on('data', (stdoutChunk: string) => {
       outputChannel.appendLine(`[stdout] ${stdoutChunk}`);
     });
