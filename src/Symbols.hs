@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Symbols (extractStatements, symbolsMain) where
+module Symbols (getSymbols) where
 
 import           Control.Lens                       (toListOf)
 import           Data.Data.Lens                     (template)
@@ -9,12 +9,10 @@ import           Data.List.Unique                   (sortUniq)
 import qualified Language.LSP.Types                 as LSPTypes
 import qualified Language.Python.Common.AST         as PythonAST
 import qualified Language.Python.Common.SrcLocation as PythonSrcLoc
-import qualified Language.Python.Version3.Parser    as V3
 import           RIO
-import           System.IO
 
 
--- | Traverse a Python syntax tree and extract top-level 'Statement' nodes.
+{-| Traverse a Python syntax tree and extract top-level 'Statement' nodes. -}
 extractStatements :: PythonAST.ModuleSpan -> [PythonAST.Statement PythonSrcLoc.SrcSpan]
 extractStatements = toListOf template
 
@@ -59,6 +57,7 @@ deduplicate :: [PythonAST.Ident PythonSrcLoc.SrcSpan] -> [PythonAST.Ident Python
 deduplicate = fmap getIdentifier . sortUniq . fmap IdentifierComparison
 
 
+{-| Convert an 'Ident' node to a Variable symbol for the LSP. -}
 identToVariableSymbol :: PythonAST.Ident PythonSrcLoc.SrcSpan -> Maybe LSPTypes.SymbolInformation
 identToVariableSymbol identifier = conversionResult
   where
@@ -77,11 +76,12 @@ identToVariableSymbol identifier = conversionResult
           LSPTypes.Location
             (LSPTypes.filePathToUri filename)
             (LSPTypes.Range
-              (LSPTypes.Position startRow startCol)
-              (LSPTypes.Position endRow endCol)
+              (LSPTypes.Position (startRow - 1) startCol)
+              (LSPTypes.Position (endRow - 1) endCol)
             )
 
     conversionResult = case locationMaybe of
+      Nothing -> Nothing
       Just location ->
         Just $ LSPTypes.SymbolInformation
           (fromString name)
@@ -90,19 +90,11 @@ identToVariableSymbol identifier = conversionResult
           Nothing
           location
           Nothing
-      Nothing -> Nothing
 
 
-symbolsMain :: IO ()
-symbolsMain = do
-  pythonFile <- openFile "python-project/test1.py" ReadMode
-  contents <- hGetContents pythonFile
-  let parseResult = V3.parseModule contents "python-project/test1.py"
-  print $ fmap
-    ( fmap identToVariableSymbol
-    . deduplicate
-    . concatMap extractIdentifiersFromStatement
-    . extractStatements
-    . fst
-    )
-    parseResult
+{-| Get symbols from a Python syntax tree. -}
+getSymbols :: PythonAST.ModuleSpan -> [LSPTypes.SymbolInformation]
+getSymbols = mapMaybe identToVariableSymbol
+  . deduplicate
+  . concatMap extractIdentifiersFromStatement
+  . extractStatements

@@ -13,6 +13,7 @@ import qualified Language.Python.Common.AST      as PyAST
 import qualified Language.Python.Version3.Parser as PyV3
 import           RIO
 import           RIO.Text
+import           Symbols                         (getSymbols)
 import           System.IO
 import           Types
 
@@ -44,7 +45,8 @@ handlers = mconcat
       let DocumentFormattingParams _workDoneToken textDocument _formattingOptions = params
       let TextDocumentIdentifier uri = textDocument
       case uriToFilePath uri of
-        Nothing -> responder (Left $ ResponseError UnknownErrorCode (fromString "error") Nothing)
+        Nothing ->
+          responder (Left $ ResponseError InvalidParams "Cannot parse URI" Nothing)
         Just filePath -> do
           pythonFile <- liftIO $ openFile filePath ReadMode
           contents <- liftIO $ hGetContents pythonFile
@@ -52,6 +54,20 @@ handlers = mconcat
 
           let fullDocumentRange = Range (Position 0 0) (getLastPosition (fromString contents))
           responder (Right $ List [TextEdit fullDocumentRange prettifiedContent])
+  , requestHandler STextDocumentDocumentSymbol $ \req responder -> do
+      let RequestMessage _jsonrpc _id _method params = req
+      let DocumentSymbolParams _workDoneToken _partialResultToken textDocument = params
+      let TextDocumentIdentifier uri = textDocument
+      case uriToFilePath uri of
+        Nothing ->
+          responder (Left $ ResponseError InvalidParams "Cannot parse URI" Nothing)
+        Just filePath -> do
+          pythonFile <- liftIO $ openFile filePath ReadMode
+          fileContent <- liftIO $ hGetContents pythonFile
+          case PyV3.parseModule fileContent filePath of
+            Left _e -> responder
+              (Left $ ResponseError InvalidParams "Failed to parse the Python module" Nothing)
+            Right (ast, _comments) -> responder (Right (InR $ List $ getSymbols ast))
   ]
 
 getLastPosition
@@ -64,8 +80,8 @@ getLastPosition fileContent = Position lineNum columnNum
     columnNum = lastElementLength splitContent
 
     lastElementLength :: [Text] -> Int
-    lastElementLength [] = 0
-    lastElementLength [word] = RIO.Text.length word
+    lastElementLength []      = 0
+    lastElementLength [word]  = RIO.Text.length word
     lastElementLength (_x:xs) = lastElementLength xs
 
 
