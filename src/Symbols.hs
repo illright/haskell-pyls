@@ -15,6 +15,16 @@ extractStatements :: PythonAST.ModuleSpan -> [PythonAST.Statement PythonSrcLoc.S
 extractStatements (PythonAST.Module statements) = statements
 
 
+findIdentifiersInExpr
+  :: PythonAST.Expr PythonSrcLoc.SrcSpan
+  -> [PythonAST.Ident PythonSrcLoc.SrcSpan]
+findIdentifiersInExpr (PythonAST.Var varIdent _annot)        = [varIdent]
+findIdentifiersInExpr (PythonAST.Tuple tupleExprs _annot)    = concatMap findIdentifiersInExpr tupleExprs
+findIdentifiersInExpr (PythonAST.List listExprs _annot)      = concatMap findIdentifiersInExpr listExprs
+findIdentifiersInExpr (PythonAST.Starred starredExpr _annot) = findIdentifiersInExpr starredExpr
+findIdentifiersInExpr _anythingElse                          = []
+
+
 {-| Recursively traverse a Statement and extract 'Ident' nodes
 that correspond to defined symbols in the code. -}
 extractIdentifiersFromStatement
@@ -38,8 +48,9 @@ extractIdentifiersFromStatement (PythonAST.FromImport _fromModule (PythonAST.Fro
 extractIdentifiersFromStatement (PythonAST.While _condition body elseBlock _annot) =
   concatMap extractIdentifiersFromStatement (body ++ elseBlock)
 
-extractIdentifiersFromStatement (PythonAST.For _forTargets _forGenerator body elseBlock _annot) =
-  concatMap extractIdentifiersFromStatement (body ++ elseBlock)  -- TODO: read the for targets
+extractIdentifiersFromStatement (PythonAST.For forTargets _forGenerator body elseBlock _annot) =
+  zip (concatMap findIdentifiersInExpr forTargets) (repeat LSPTypes.SkVariable)
+  ++ concatMap extractIdentifiersFromStatement (body ++ elseBlock)
 
 extractIdentifiersFromStatement (PythonAST.AsyncFor forLoop _annot) =
   extractIdentifiersFromStatement forLoop
@@ -65,13 +76,8 @@ extractIdentifiersFromStatement (PythonAST.Conditional guards elseBlock _annot) 
   concatMap extractIdentifiersFromStatement (elseBlock ++ concatMap snd guards)
 
 extractIdentifiersFromStatement (PythonAST.Assign assignTo _assignExpr _annot) =
-    zip (concatMap findIdentifiers assignTo) (repeat LSPTypes.SkVariable)
-  where
-    findIdentifiers (PythonAST.Var varIdent _annot)        = [varIdent]
-    findIdentifiers (PythonAST.Tuple tupleExprs _annot)    = concatMap findIdentifiers tupleExprs
-    findIdentifiers (PythonAST.List listExprs _annot)      = concatMap findIdentifiers listExprs
-    findIdentifiers (PythonAST.Starred starredExpr _annot) = findIdentifiers starredExpr
-    findIdentifiers _anythingElse                          = []
+    zip (concatMap findIdentifiersInExpr assignTo) (repeat LSPTypes.SkVariable)
+
 
 extractIdentifiersFromStatement _otherStatement = []
 
