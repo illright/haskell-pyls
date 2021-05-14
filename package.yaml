@@ -27,7 +27,6 @@ dependencies:
   - language-python >= 0.5.8 && < 1
   - containers >= 0.6.2.1 && < 1
   - lens >= 4.19.2 && < 5
-  - Unique >= 0.4.7.8 && < 1
 
 ghc-options:
   - -Wall

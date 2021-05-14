@@ -60,10 +60,3 @@ packages:
       sha256: 119b67a712f8ba938383969b629cb3d489eacd10f9525346e19867ea0eb1be98
       size: 708
     hackage: some-1.0.2@sha256:3d460998df32ad7b93bf55657aeae988d97070155e71718b4bc75d0997ce9d62,2244
-- original:
-    hackage: Unique-0.4.7.8
-  completed:
-    pantry-tree:
-      sha256: ad77421b187b6b70b073603dca9e63869893d5e6376714f448e56b7326235f40
-      size: 1366
-    hackage: Unique-0.4.7.8@sha256:9661f45aa31dde119a2114566166ea38b011a45653337045ee4ced75636533c0,2067

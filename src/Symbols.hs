@@ -3,63 +3,84 @@
 
 module Symbols (getSymbols) where
 
-import           Control.Lens                       (toListOf)
-import           Data.Data.Lens                     (template)
-import           Data.List.Unique                   (sortUniq)
 import qualified Language.LSP.Types                 as LSPTypes
 import qualified Language.Python.Common.AST         as PythonAST
 import qualified Language.Python.Common.SrcLocation as PythonSrcLoc
 import           RIO
+import           RIO.List                           (repeat)
 
 
 {-| Traverse a Python syntax tree and extract top-level 'Statement' nodes. -}
 extractStatements :: PythonAST.ModuleSpan -> [PythonAST.Statement PythonSrcLoc.SrcSpan]
-extractStatements = toListOf template
+extractStatements (PythonAST.Module statements) = statements
 
 
 {-| Recursively traverse a Statement and extract 'Ident' nodes
 that correspond to defined symbols in the code. -}
 extractIdentifiersFromStatement
   :: PythonAST.Statement PythonSrcLoc.SrcSpan
-  -> [PythonAST.Ident PythonSrcLoc.SrcSpan]
+  -> [(PythonAST.Ident PythonSrcLoc.SrcSpan, LSPTypes.SymbolKind)]
+
+extractIdentifiersFromStatement (PythonAST.Import importItems _annot) =
+    zip (concatMap findIdentifiers importItems) (repeat LSPTypes.SkModule)
+  where
+    findIdentifiers (PythonAST.ImportItem [] Nothing _annot) = []
+    findIdentifiers (PythonAST.ImportItem (rootPkg : _restPkgs) Nothing _annot) = [rootPkg]
+    findIdentifiers (PythonAST.ImportItem _itemName (Just asName) _annot) = [asName]
+
+extractIdentifiersFromStatement (PythonAST.FromImport _fromModule (PythonAST.ImportEverything _annot) _fromAnnot) = []
+extractIdentifiersFromStatement (PythonAST.FromImport _fromModule (PythonAST.FromItems items _annot) _fromAnnot) =
+    zip (concatMap findIdentifiers items) (repeat LSPTypes.SkModule)
+  where
+    findIdentifiers (PythonAST.FromItem name Nothing _annot) = [name]
+    findIdentifiers (PythonAST.FromItem _itemName (Just asName) _annot) = [asName]
+
+extractIdentifiersFromStatement (PythonAST.While _condition body elseBlock _annot) =
+  concatMap extractIdentifiersFromStatement (body ++ elseBlock)
+
+extractIdentifiersFromStatement (PythonAST.For _forTargets _forGenerator body elseBlock _annot) =
+  concatMap extractIdentifiersFromStatement (body ++ elseBlock)  -- TODO: read the for targets
+
+extractIdentifiersFromStatement (PythonAST.AsyncFor forLoop _annot) =
+  extractIdentifiersFromStatement forLoop
+
+extractIdentifiersFromStatement (PythonAST.Fun funName funArgs _result body _annot) =
+    (function : args) ++ concatMap extractIdentifiersFromStatement body
+  where
+    function = (funName, LSPTypes.SkFunction)
+    args = zip (concatMap findIdentifiers funArgs) (repeat LSPTypes.SkVariable )
+
+    findIdentifiers (PythonAST.Param name _typeAnnot _default _annot) = [name]
+    findIdentifiers (PythonAST.VarArgsPos name _typeAnnot _annot)     = [name]
+    findIdentifiers (PythonAST.VarArgsKeyword name _typeAnnot _annot) = [name]
+    findIdentifiers _anythingElse                                     = []
+
+extractIdentifiersFromStatement (PythonAST.AsyncFun funDef _annot) =
+  extractIdentifiersFromStatement funDef
+
+extractIdentifiersFromStatement (PythonAST.Class name _args body _annot) =
+  (name, LSPTypes.SkClass) : concatMap extractIdentifiersFromStatement body
+
+extractIdentifiersFromStatement (PythonAST.Conditional guards elseBlock _annot) =
+  concatMap extractIdentifiersFromStatement (elseBlock ++ concatMap snd guards)
+
 extractIdentifiersFromStatement (PythonAST.Assign assignTo _assignExpr _annot) =
-    concatMap findIdentifiers assignTo
+    zip (concatMap findIdentifiers assignTo) (repeat LSPTypes.SkVariable)
   where
     findIdentifiers (PythonAST.Var varIdent _annot)        = [varIdent]
     findIdentifiers (PythonAST.Tuple tupleExprs _annot)    = concatMap findIdentifiers tupleExprs
     findIdentifiers (PythonAST.List listExprs _annot)      = concatMap findIdentifiers listExprs
     findIdentifiers (PythonAST.Starred starredExpr _annot) = findIdentifiers starredExpr
     findIdentifiers _anythingElse                          = []
+
 extractIdentifiersFromStatement _otherStatement = []
 
 
-{-| A wrapper type defining equality and ordering of 'Ident'
-nodes based on the text content of the identifier. -}
-newtype IdentifierComparison = IdentifierComparison
-  { getIdentifier :: PythonAST.Ident PythonSrcLoc.SrcSpan
-  } deriving (Show)
-
-instance Eq IdentifierComparison where
-  a == b = aName == bName
-    where
-      IdentifierComparison (PythonAST.Ident aName _aAnnot) = a
-      IdentifierComparison (PythonAST.Ident bName _bAnnot) = b
-
-instance Ord IdentifierComparison where
-  compare a b = compare aName bName
-    where
-      IdentifierComparison (PythonAST.Ident aName _aAnnot) = a
-      IdentifierComparison (PythonAST.Ident bName _bAnnot) = b
-
-
-{-| Remove duplicates from a list of 'Ident' nodes. -}
-deduplicate :: [PythonAST.Ident PythonSrcLoc.SrcSpan] -> [PythonAST.Ident PythonSrcLoc.SrcSpan]
-deduplicate = fmap getIdentifier . sortUniq . fmap IdentifierComparison
-
-
-{-| Convert an 'Ident' node to a Variable symbol for the LSP. -}
-identToVariableSymbol :: PythonAST.Ident PythonSrcLoc.SrcSpan -> Maybe LSPTypes.SymbolInformation
-identToVariableSymbol identifier = conversionResult
+{-| Convert an 'Ident' node to a symbol for the LSP. -}
+identToSymbol
+  :: (PythonAST.Ident PythonSrcLoc.SrcSpan, LSPTypes.SymbolKind)
+  -> Maybe LSPTypes.SymbolInformation
+identToSymbol (identifier, kind) = conversionResult
   where
     PythonAST.Ident name annot = identifier
     locationMaybe = case annot of
@@ -85,7 +106,7 @@ identToVariableSymbol identifier = conversionResult
       Just location ->
         Just $ LSPTypes.SymbolInformation
           (fromString name)
-          LSPTypes.SkVariable
+          kind
           Nothing
           Nothing
           location
@@ -94,7 +115,6 @@ identToVariableSymbol identifier = conversionResult
 
 {-| Get symbols from a Python syntax tree. -}
 getSymbols :: PythonAST.ModuleSpan -> [LSPTypes.SymbolInformation]
-getSymbols = mapMaybe identToVariableSymbol
-  . deduplicate
+getSymbols = mapMaybe identToSymbol
   . concatMap extractIdentifiersFromStatement
   . extractStatements

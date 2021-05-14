@@ -34,8 +34,7 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
-      Unique >=0.4.7.8 && <1
-    , base >=4.11 && <10
+      base >=4.11 && <10
     , containers >=0.6.2.1 && <1
     , language-python >=0.5.8 && <1
     , lens >=4.19.2 && <5
@@ -53,8 +52,7 @@ executable haskell-pyls-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Unique >=0.4.7.8 && <1
-    , base >=4.11 && <10
+      base >=4.11 && <10
     , containers >=0.6.2.1 && <1
     , haskell-pyls
     , language-python >=0.5.8 && <1
