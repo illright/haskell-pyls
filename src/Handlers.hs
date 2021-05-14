@@ -8,9 +8,12 @@ import           Data.Map
 import qualified Data.Text                       as T
 import           Language.LSP.Server
 import           Language.LSP.Types
-import qualified Language.Python.Common.AST      as P
-import qualified Language.Python.Version3.Parser as V3
+import qualified Language.Python.Common          as PyCommon
+import qualified Language.Python.Common.AST      as PyAST
+import qualified Language.Python.Version3.Parser as PyV3
 import           RIO
+import           RIO.Text
+import           System.IO
 import           Types
 
 handlers :: Handlers (StateT ServerState (LspT () (RIO App)))
@@ -32,17 +35,56 @@ handlers = mconcat
       let VersionedTextDocumentIdentifier uri _version = textDocument
       let fileName = "untitled.py"
 
-      lift $ lift $ logInfo (fromString $ show currentFileIndex)
+      -- lift $ lift $ logInfo (fromString $ show currentFileIndex)
       let newFileIndex = alter (replaceFileContent contentChanges fileName) uri currentFileIndex
       put (ServerState newFileIndex)
-      lift $ lift $ logInfo (fromString $ show newFileIndex)
+      -- lift $ lift $ logInfo (fromString $ show newFileIndex)
+  , requestHandler STextDocumentFormatting $ \req responder -> do
+      let RequestMessage _jsonrpc _id _method params = req
+      let DocumentFormattingParams _workDoneToken textDocument _formattingOptions = params
+      let TextDocumentIdentifier uri = textDocument
+      case uriToFilePath uri of
+        Nothing -> responder (Left $ ResponseError UnknownErrorCode (fromString "error") Nothing)
+        Just filePath -> do
+          pythonFile <- liftIO $ openFile filePath ReadMode
+          contents <- liftIO $ hGetContents pythonFile
+          let prettifiedContent = prettifyFileContent (fromString contents)
+
+          let fullDocumentRange = Range (Position 0 0) (getLastPosition (fromString contents))
+          responder (Right $ List [TextEdit fullDocumentRange prettifiedContent])
   ]
+
+getLastPosition
+  :: Text
+  -> Position
+getLastPosition fileContent = Position lineNum columnNum
+  where
+    splitContent = RIO.Text.lines fileContent
+    lineNum = max (RIO.length splitContent - 1) 0
+    columnNum = lastElementLength splitContent
+
+    lastElementLength :: [Text] -> Int
+    lastElementLength [] = 0
+    lastElementLength [word] = RIO.Text.length word
+    lastElementLength (_x:xs) = lastElementLength xs
+
+
+prettifyFileContent
+  :: Text
+  -> Text
+prettifyFileContent fileContent = prettifierResult
+  where
+    parseResult = PyV3.parseModule (T.unpack fileContent) "untitled.py"
+    prettifierResult = case parseResult of
+      Left _e                   -> fileContent
+      Right (newAST, _comments) -> fromString (PyCommon.prettyText newAST)
+
 
 replaceFileContent
   :: List TextDocumentContentChangeEvent
   -> String
-  -> Maybe (Text, P.ModuleSpan)
-  -> Maybe (Text, P.ModuleSpan)
+  -> Maybe (Text, PyAST.ModuleSpan)
+  -> Maybe (Text, PyAST.ModuleSpan)
 replaceFileContent (List []) _fileName _currentFile = Nothing
 replaceFileContent (List (change : _restChanges)) fileName _currentFile =
     case parseResult of
@@ -50,4 +92,4 @@ replaceFileContent (List (change : _restChanges)) fileName _currentFile =
       Right (newAST, _comments) -> Just (fileContent, newAST)
   where
     TextDocumentContentChangeEvent _range _rangeLength fileContent = change
-    parseResult = V3.parseModule (T.unpack fileContent) fileName
+    parseResult = PyV3.parseModule (T.unpack fileContent) fileName
