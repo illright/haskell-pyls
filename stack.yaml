@@ -28,6 +28,7 @@ extra-deps:
   - dependent-sum-template-0.1.0.3
   - constraints-extras-0.3.1.0
   - some-1.0.2
+  - Unique-0.4.7.8
 
 local-bin-path: build
 

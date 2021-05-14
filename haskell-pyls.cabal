@@ -26,6 +26,7 @@ library
   exposed-modules:
       Entrypoint
       Handlers
+      Symbols
       Types
   other-modules:
       Paths_haskell_pyls
@@ -33,11 +34,12 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.11 && <10
+      Unique >=0.4.7.8 && <1
+    , base >=4.11 && <10
     , containers >=0.6.2.1 && <1
     , language-python >=0.5.8 && <1
+    , lens >=4.19.2 && <5
     , lsp >=1.2.0.0 && <2
-    , modern-uri >=0.3.4.1 && <1
     , rio >=0.1.12.0
     , text >=1.2.4.1 && <2
     , transformers >=0.5.6.2 && <1
@@ -51,12 +53,13 @@ executable haskell-pyls-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.11 && <10
+      Unique >=0.4.7.8 && <1
+    , base >=4.11 && <10
     , containers >=0.6.2.1 && <1
     , haskell-pyls
     , language-python >=0.5.8 && <1
+    , lens >=4.19.2 && <5
     , lsp >=1.2.0.0 && <2
-    , modern-uri >=0.3.4.1 && <1
     , optparse-simple
     , rio >=0.1.12.0
     , text >=1.2.4.1 && <2
