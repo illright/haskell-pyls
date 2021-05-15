@@ -1,5 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
+
 module Main (main) where
 
 import           Entrypoint                 (run)
@@ -8,7 +10,7 @@ import qualified Paths_haskell_pyls
 import           RIO
 import           Types                      (App (..), Options (..))
 
-{- | Parse the arguments from the command line.
+{-| Parse the arguments from the command line.
 
 Remember `--` in order to ensure that the arguments
 go to the program and not to Stack:

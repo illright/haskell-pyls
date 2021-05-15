@@ -78,7 +78,6 @@ extractIdentifiersFromStatement (PythonAST.Conditional guards elseBlock _annot) 
 extractIdentifiersFromStatement (PythonAST.Assign assignTo _assignExpr _annot) =
     zip (concatMap findIdentifiersInExpr assignTo) (repeat LSPTypes.SkVariable)
 
-
 extractIdentifiersFromStatement _otherStatement = []
 
 

@@ -27,17 +27,23 @@ import           System.Directory.Tree              (AnchoredDirTree (..),
                                                      readDirectory)
 import           System.FilePath                    (joinPath, takeExtension)
 
+
+{-| List of handlers defined for our language server. -}
 handlers :: Handlers (StateT ServerState (LspT () (RIO App)))
 handlers = mconcat
+  -- Handle file initialization
   [ notificationHandler SInitialized $ \_not -> do
       let params = ShowMessageParams MtInfo (fromString "Hello, language client!")
       lift $ sendNotification SWindowShowMessage params
+  -- Handle file opening
   , notificationHandler STextDocumentDidOpen $ \_not -> do
       let params = ShowMessageParams MtInfo (fromString "I see you've opened a Python file")
       lift $ sendNotification SWindowShowMessage params
+  -- Handle file closing
   , notificationHandler STextDocumentDidClose $ \_not -> do
       let params = ShowMessageParams MtInfo (fromString "I see you've closed a Python file")
       lift $ sendNotification SWindowShowMessage params
+  -- Handle file changing (note: unfinished)
   , notificationHandler STextDocumentDidChange $ \changeNotification -> do
       ServerState currentFileIndex <- get
 
@@ -48,6 +54,10 @@ handlers = mconcat
 
       let newFileIndex = alter (replaceFileContent contentChanges fileName) uri currentFileIndex
       put (ServerState newFileIndex)
+
+      let messageParams = ShowMessageParams MtInfo (fromString "I see you've changed a Python file")
+      lift $ sendNotification SWindowShowMessage messageParams
+  -- Handle file formatting (note: formatter skips python comments)
   , requestHandler STextDocumentFormatting $ \req responder -> do
       let RequestMessage _jsonrpc _id _method params = req
       let DocumentFormattingParams _workDoneToken textDocument _formattingOptions = params
@@ -62,6 +72,7 @@ handlers = mconcat
 
           let fullDocumentRange = Range (Position 0 0) (getLastPosition (fromString fileContents))
           responder (Right $ List [TextEdit fullDocumentRange prettifiedContent])
+  -- Handle go-to-symbol request
   , requestHandler STextDocumentDocumentSymbol $ \req responder -> do
       let RequestMessage _jsonrpc _id _method params = req
       let DocumentSymbolParams _workDoneToken _partialResultToken textDocument = params
@@ -76,6 +87,7 @@ handlers = mconcat
             Left _e -> responder
               (Left $ ResponseError InvalidParams "Failed to parse the Python module" Nothing)
             Right (ast, _comments) -> responder (Right (InR $ List $ getSymbols ast))
+  -- Handle go-to-declaration request
   , requestHandler STextDocumentDeclaration $ \req responder -> do
       let RequestMessage _jsonrpc _id _method params = req
       let DeclarationParams textDocument position _workDoneToken _partialResultToken = params
@@ -103,6 +115,8 @@ handlers = mconcat
                     Just (SymbolInformation _ _ _ _ loc _) -> responder (Right $ InL loc)
   ]
 
+
+{-| Get position of the last symbol in a file. -}
 getLastPosition
   :: Text
   -> Position
@@ -118,6 +132,7 @@ getLastPosition fileContent = Position lineNum columnNum
     lastElementLength (_x:xs) = lastElementLength xs
 
 
+{-| Get AST node by its position. -}
 getASTNodeByPosition
   :: Position
   -> PyAST.ModuleSpan
@@ -128,6 +143,7 @@ getASTNodeByPosition position ast = ident
     ident = RIO.List.find (positionInSpan position . PyAST.ident_annot) allIdents
 
 
+{-| Check if symbol is inside a range. -}
 positionInSpan
   :: Position
   -> PythonSrcLoc.SrcSpan
@@ -142,6 +158,7 @@ positionInSpan (Position _line _character) PythonSrcLoc.SpanEmpty =
   False
 
 
+{-| Prettify file content (note: prettifier removes comments). -}
 prettifyFileContent
   :: Text
   -> Text
@@ -153,6 +170,7 @@ prettifyFileContent fileContent = prettifierResult
       Right (newAST, _comments) -> fromString (PyCommon.prettyText newAST)
 
 
+{-| Replace file content with new content. -}
 replaceFileContent
   :: List TextDocumentContentChangeEvent
   -> String
@@ -168,6 +186,7 @@ replaceFileContent (List (change : _restChanges)) fileName _currentFile =
     parseResult = PyV3.parseModule (T.unpack fileContent) fileName
 
 
+{-| List all files in a given directory. -}
 listAllFiles
   :: FilePath
   -> DirTree Text
@@ -177,6 +196,7 @@ listAllFiles root (File fileName fileContent) = [(joinPath [root, fileName], fil
 listAllFiles root (Dir dirName dirContents) = RIO.concatMap (listAllFiles (joinPath [root, dirName])) dirContents
 
 
+{-| List all .py files in a given directory. -}
 listFilesDirFiltered
   :: FilePath
   -> IO [(FilePath, Text)]
@@ -189,6 +209,7 @@ listFilesDirFiltered folderPath = do
     pythonOnly (Failed _ _)             = False
 
 
+{-| Map each file content to AST. -}
 fileContentsToASTs
   :: [(FilePath, Text)]
   -> [Either ErrorCode PyAST.ModuleSpan]
@@ -199,11 +220,6 @@ fileContentsToASTs ((filePath, fileContent) : restFiles) = do
       Right (ast, _comments) -> Right ast : fileContentsToASTs restFiles
 
 
+{-| Match Python identifiers. -}
 matchingIdentifier :: PyAST.Ident PythonSrcLoc.SrcSpan -> SymbolInformation -> Bool
 matchingIdentifier (PyAST.Ident identName _annot) (SymbolInformation symbolName _ _ _ _ _) = fromString identName == symbolName
-
-testing :: IO ()
-testing = do
-  listing <- listFilesDirFiltered "./python-project"
-  print $ fileContentsToASTs listing
-  return ()

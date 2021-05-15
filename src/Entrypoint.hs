@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Entrypoint (run) where
 
 import           Control.Monad.IO.Class
@@ -25,11 +26,13 @@ serverVersion = showVersion Paths_haskell_pyls.version
 thisServerInfo :: ServerInfo
 thisServerInfo = ServerInfo (fromString serverName) (Just $ fromString serverVersion)
 
--- | Convert from 'IO a' to our preferred monad.
+
+{-| Convert from 'IO a' to our preferred monad. -}
 fromIOtoStateLspRIO :: IO a -> StateT ServerState (LspT () (RIO App)) a
 fromIOtoStateLspRIO = liftIO
 
--- | Convert from our preferred monad to 'IO a'.
+
+{-| Convert from our preferred monad to 'IO a'. -}
 fromStateLspRIOtoIO
   :: App
   -> LanguageContextEnv ()
@@ -39,6 +42,8 @@ fromStateLspRIOtoIO
 fromStateLspRIOtoIO app env initialState =
   runRIO app . runLspT env . (`evalStateT` initialState)
 
+
+{-| Run the application. -}
 run :: RIO App Int
 run = do
   app <- ask
