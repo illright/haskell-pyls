@@ -1,21 +1,31 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Handlers (handlers) where
+module Handlers where
 
-import           Control.Monad.Trans.State.Lazy  (StateT, get, put)
+import           Control.Monad.Trans.State.Lazy     (StateT, get, put)
 import           Data.Map
-import qualified Data.Text                       as T
+import qualified Data.Text                          as T
 import           Language.LSP.Server
 import           Language.LSP.Types
-import qualified Language.Python.Common          as PyCommon
-import qualified Language.Python.Common.AST      as PyAST
-import qualified Language.Python.Version3.Parser as PyV3
+import qualified Language.Python.Common             as PyCommon
+import qualified Language.Python.Common.AST         as PyAST
+import qualified Language.Python.Version3.Parser    as PyV3
 import           RIO
+import qualified RIO.List
 import           RIO.Text
-import           Symbols                         (getSymbols)
+import           Symbols                            (getSymbols)
 import           System.IO
 import           Types
+
+import           Control.Lens                       (toListOf)
+import           Data.Data.Lens                     (template)
+import qualified Language.Python.Common.SrcLocation as PythonSrcLoc
+import           System.Directory                   (getCurrentDirectory)
+import           System.Directory.Tree              (AnchoredDirTree (..),
+                                                     DirTree (..), filterDir,
+                                                     readDirectory)
+import           System.FilePath                    (joinPath, takeExtension)
 
 handlers :: Handlers (StateT ServerState (LspT () (RIO App)))
 handlers = mconcat
@@ -36,10 +46,8 @@ handlers = mconcat
       let VersionedTextDocumentIdentifier uri _version = textDocument
       let fileName = "untitled.py"
 
-      -- lift $ lift $ logInfo (fromString $ show currentFileIndex)
       let newFileIndex = alter (replaceFileContent contentChanges fileName) uri currentFileIndex
       put (ServerState newFileIndex)
-      -- lift $ lift $ logInfo (fromString $ show newFileIndex)
   , requestHandler STextDocumentFormatting $ \req responder -> do
       let RequestMessage _jsonrpc _id _method params = req
       let DocumentFormattingParams _workDoneToken textDocument _formattingOptions = params
@@ -49,10 +57,10 @@ handlers = mconcat
           responder (Left $ ResponseError InvalidParams "Cannot parse URI" Nothing)
         Just filePath -> do
           pythonFile <- liftIO $ openFile filePath ReadMode
-          contents <- liftIO $ hGetContents pythonFile
-          let prettifiedContent = prettifyFileContent (fromString contents)
+          fileContents <- liftIO $ hGetContents pythonFile
+          let prettifiedContent = prettifyFileContent (fromString fileContents)
 
-          let fullDocumentRange = Range (Position 0 0) (getLastPosition (fromString contents))
+          let fullDocumentRange = Range (Position 0 0) (getLastPosition (fromString fileContents))
           responder (Right $ List [TextEdit fullDocumentRange prettifiedContent])
   , requestHandler STextDocumentDocumentSymbol $ \req responder -> do
       let RequestMessage _jsonrpc _id _method params = req
@@ -68,6 +76,31 @@ handlers = mconcat
             Left _e -> responder
               (Left $ ResponseError InvalidParams "Failed to parse the Python module" Nothing)
             Right (ast, _comments) -> responder (Right (InR $ List $ getSymbols ast))
+  , requestHandler STextDocumentDeclaration $ \req responder -> do
+      let RequestMessage _jsonrpc _id _method params = req
+      let DeclarationParams textDocument position _workDoneToken _partialResultToken = params
+      let TextDocumentIdentifier uri = textDocument
+      cwd <- lift $ lift $ liftIO getCurrentDirectory
+      allPythonFiles <- lift $ lift $ liftIO $ listFilesDirFiltered cwd
+      let allASTs = fileContentsToASTs allPythonFiles
+      let allSymbols = RIO.concatMap getSymbols (rights allASTs)
+      case uriToFilePath uri of
+        Nothing ->
+          responder (Left $ ResponseError InvalidParams "Cannot parse URI" Nothing)
+        Just filePath -> do
+          pythonFile <- liftIO $ openFile filePath ReadMode
+          fileContent <- liftIO $ hGetContents pythonFile
+          case PyV3.parseModule fileContent filePath of
+            Left _e -> responder
+              (Left $ ResponseError InvalidParams "Failed to parse the Python module" Nothing)
+            Right (ast, _comments) -> do
+              case getASTNodeByPosition position ast of
+                Nothing -> responder
+                  (Left $ ResponseError InvalidParams "Invalid position" Nothing)
+                Just ident -> do
+                  case RIO.List.find (matchingIdentifier ident) allSymbols of
+                    Nothing     -> responder (Left $ ResponseError InvalidParams "Nothing found" Nothing)
+                    Just (SymbolInformation _ _ _ _ loc _) -> responder (Right $ InL loc)
   ]
 
 getLastPosition
@@ -83,6 +116,30 @@ getLastPosition fileContent = Position lineNum columnNum
     lastElementLength []      = 0
     lastElementLength [word]  = RIO.Text.length word
     lastElementLength (_x:xs) = lastElementLength xs
+
+
+getASTNodeByPosition
+  :: Position
+  -> PyAST.ModuleSpan
+  -> Maybe (PyAST.Ident PythonSrcLoc.SrcSpan)
+getASTNodeByPosition position ast = ident
+  where
+    allIdents = toListOf template ast :: [PyAST.Ident PythonSrcLoc.SrcSpan]
+    ident = RIO.List.find (positionInSpan position . PyAST.ident_annot) allIdents
+
+
+positionInSpan
+  :: Position
+  -> PythonSrcLoc.SrcSpan
+  -> Bool
+positionInSpan (Position line character) (PythonSrcLoc.SpanCoLinear _fileName row startCol endCol) =
+  (line + 1) == row && startCol <= character && endCol >= character
+positionInSpan (Position line character) (PythonSrcLoc.SpanMultiLine _fileName startRow startCol endRow endCol) =
+  startRow <= (line + 1) && endRow >= (line + 1) && startCol <= character && endCol >= character
+positionInSpan (Position line character) (PythonSrcLoc.SpanPoint _fileName row col) =
+  (line + 1) == row && character == col
+positionInSpan (Position _line _character) PythonSrcLoc.SpanEmpty =
+  False
 
 
 prettifyFileContent
@@ -109,3 +166,44 @@ replaceFileContent (List (change : _restChanges)) fileName _currentFile =
   where
     TextDocumentContentChangeEvent _range _rangeLength fileContent = change
     parseResult = PyV3.parseModule (T.unpack fileContent) fileName
+
+
+listAllFiles
+  :: FilePath
+  -> DirTree Text
+  -> [(FilePath, Text)]
+listAllFiles _root (Failed _ _) = []
+listAllFiles root (File fileName fileContent) = [(joinPath [root, fileName], fileContent)]
+listAllFiles root (Dir dirName dirContents) = RIO.concatMap (listAllFiles (joinPath [root, dirName])) dirContents
+
+
+listFilesDirFiltered
+  :: FilePath
+  -> IO [(FilePath, Text)]
+listFilesDirFiltered folderPath = do
+    root :/ tree <- readDirectory folderPath
+    return $ listAllFiles root (fromString <$> filterDir pythonOnly tree)
+  where
+    pythonOnly (Dir _ _)                = True
+    pythonOnly (File fileName _content) = takeExtension fileName == ".py"
+    pythonOnly (Failed _ _)             = False
+
+
+fileContentsToASTs
+  :: [(FilePath, Text)]
+  -> [Either ErrorCode PyAST.ModuleSpan]
+fileContentsToASTs [] = []
+fileContentsToASTs ((filePath, fileContent) : restFiles) = do
+  case PyV3.parseModule (T.unpack fileContent) filePath of
+      Left _e                -> Left ParseError : fileContentsToASTs restFiles
+      Right (ast, _comments) -> Right ast : fileContentsToASTs restFiles
+
+
+matchingIdentifier :: PyAST.Ident PythonSrcLoc.SrcSpan -> SymbolInformation -> Bool
+matchingIdentifier (PyAST.Ident identName _annot) (SymbolInformation symbolName _ _ _ _ _) = fromString identName == symbolName
+
+testing :: IO ()
+testing = do
+  listing <- listFilesDirFiltered "./python-project"
+  print $ fileContentsToASTs listing
+  return ()
